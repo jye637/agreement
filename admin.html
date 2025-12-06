@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>蔡小資安同意書管理後臺</title>
+<title>114資安同意書管理後臺</title>
 <style>
 body { font-family:Noto Sans TC, sans-serif; background:#f5f5f5; padding:20px;}
 h1 { text-align:center; color:#003366;}
@@ -48,9 +48,7 @@ button:hover { background:#004d00;}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
 import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-
-// jsPDF CDN
-import jsPDF from "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+import { jsPDF } from "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.es.min.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCk-1B0IwsSOwlNIn71-LofJRoHzgh6kJQ",
@@ -78,6 +76,7 @@ document.getElementById("loginBtn").addEventListener("click", async () => {
     await signInWithEmailAndPassword(auth, email, password);
     loginStatus.textContent = "";
   } catch (error) {
+    console.error(error);
     loginStatus.textContent = "帳號或密碼錯誤";
   }
 });
@@ -129,7 +128,6 @@ async function loadSignatures() {
 
 // PDF 下載（完整資安同意書 + 簽名）
 document.getElementById("downloadPDF").addEventListener("click", async () => {
-  const { jsPDF } = window.jspdf;
   const pdf = new jsPDF();
   let y = 10;
 
@@ -180,9 +178,6 @@ document.getElementById("downloadPDF").addEventListener("click", async () => {
   pdf.save("consent_signatures.pdf");
 });
 </script>
-
-<!-- jsPDF CDN -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 </body>
 </html>
