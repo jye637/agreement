@@ -86,66 +86,69 @@ canvas{border:1px solid #ccc;margin-top:5px;}
 <p id="status"></p>
 </div>
 
+<!-- Firebase SDK -->
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getStorage, ref, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+  import { getStorage, ref, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-storage.js";
 
-const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
-};
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const storage = getStorage(app);
+  const firebaseConfig = {
+    apiKey: "AIzaSyCk-1B0IwsSOwlNIn71-LofJRoHzgh6kJQ",
+    authDomain: "signup-f163b.firebaseapp.com",
+    projectId: "signup-f163b",
+    storageBucket: "signup-f163b.appspot.com",
+    messagingSenderId: "4965735888",
+    appId: "1:4965735888:web:6ce33434885f967ed22dd5"
+  };
 
-const canvas = document.getElementById("signatureCanvas");
-const ctx = canvas.getContext("2d");
-let drawing=false;
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const storage = getStorage(app);
 
-canvas.addEventListener("mousedown",()=>drawing=true);
-canvas.addEventListener("mouseup",()=>drawing=false);
-canvas.addEventListener("mouseleave",()=>drawing=false);
-canvas.addEventListener("mousemove",(e)=>{
-    if(!drawing) return;
-    ctx.lineWidth=2;
-    ctx.lineCap="round";
-    ctx.strokeStyle="black";
-    ctx.beginPath();
-    ctx.moveTo(e.offsetX, e.offsetY);
-    ctx.lineTo(e.offsetX+1, e.offsetY+1);
-    ctx.stroke();
-});
+  // Canvas 簽名功能
+  const canvas = document.getElementById("signature");
+  const ctx = canvas.getContext("2d");
+  let drawing = false;
 
-document.getElementById("consentForm").addEventListener("submit", async e=>{
-    e.preventDefault();
+  canvas.addEventListener("mousedown", e => { drawing = true; ctx.moveTo(e.offsetX, e.offsetY); });
+  canvas.addEventListener("mousemove", e => { if(drawing) ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); });
+  canvas.addEventListener("mouseup", () => drawing = false);
+  canvas.addEventListener("mouseleave", () => drawing = false);
+
+  document.getElementById("submitBtn").addEventListener("click", async () => {
     const agree = document.getElementById("agree").checked;
     const idLast5 = document.getElementById("idLast5").value.trim();
-    if(!agree || idLast5.length!==5){
-        alert("請勾選同意並輸入正確身分證後5碼");
-        return;
-    }
 
-    const signatureDataURL = canvas.toDataURL("image/png");
-    const storageRef = ref(storage, `signatures/${idLast5}_${Date.now()}.png`);
-    await uploadString(storageRef, signatureDataURL, 'data_url');
-    const signatureURL = await getDownloadURL(storageRef);
+    if(!agree) { alert("請勾選同意"); return; }
+    if(idLast5.length !== 5) { alert("請輸入正確的身分證後5碼"); return; }
 
-    await addDoc(collection(db, "signatures"), {
-        idLast5,
+    const dataUrl = canvas.toDataURL(); // 簽名轉成圖片 base64
+    const fileName = `signatures/${idLast5}_${Date.now()}.png`;
+    const storageRef = ref(storage, fileName);
+
+    try {
+      // 上傳簽名
+      await uploadString(storageRef, dataUrl, "data_url");
+      const signatureUrl = await getDownloadURL(storageRef);
+
+      // 儲存到 Firestore
+      await addDoc(collection(db, "signatures"), {
         agree,
-        signature: signatureURL,
+        idLast5,
+        signatureUrl,
         timestamp: serverTimestamp()
-    });
+      });
 
-    document.getElementById("status").innerText="我們已經收到您的同意書了";
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    document.getElementById("consentForm").reset();
-});
+      alert("我們已經收到您的同意書了");
+      // 清空表單
+      document.getElementById("agree").checked = false;
+      document.getElementById("idLast5").value = "";
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    } catch (error) {
+      console.error(error);
+      alert("送出失敗，請稍後再試");
+    }
+  });
 </script>
 </body>
 </html>
