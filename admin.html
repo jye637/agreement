@@ -3,53 +3,51 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>資安同意書管理後台</title>
+<title>管理後台 - 資安同意書簽名</title>
 <style>
 body{font-family:Noto Sans TC,sans-serif;background:#f5f5f5;padding:20px;}
 .container{max-width:900px;margin:0 auto;background:#fff;padding:30px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1);}
 h1{text-align:center;color:#006600;}
-button{margin:5px;padding:8px 15px;background:#006600;color:#fff;border:none;border-radius:5px;cursor:pointer;}
-button:hover{background:#004d00;}
 table{width:100%;border-collapse:collapse;margin-top:20px;}
-th, td{border:1px solid #ccc;padding:8px;text-align:center;}
-#loginForm{margin-bottom:20px;}
+table, th, td{border:1px solid #ccc;}
+th, td{padding:10px;text-align:center;}
+button{padding:5px 10px;background:#006600;color:#fff;border:none;border-radius:5px;cursor:pointer;}
+button:hover{background:#004d00;}
+#loginDiv{max-width:400px;margin:50px auto;text-align:center;}
+#loginDiv input{padding:8px;width:90%;margin:5px 0;border-radius:5px;border:1px solid #ccc;}
+#status{color:red;font-weight:bold;margin-top:10px;text-align:center;}
 </style>
 </head>
 <body>
-<div class="container">
-<h1>資安同意書管理後台</h1>
 
-<div id="loginDiv">
-  <p>請使用管理員帳號登入：</p>
-  <form id="loginForm">
-    <input type="email" id="email" placeholder="Email" required>
-    <input type="password" id="password" placeholder="密碼" required>
-    <button type="submit">登入</button>
-  </form>
-  <p id="loginStatus"></p>
-</div>
-
-<div id="adminDiv" style="display:none;">
-  <button id="logoutBtn">登出</button>
+<div class="container" id="mainContent" style="display:none;">
+  <h1>資安同意書簽名管理後台</h1>
   <table>
     <thead>
       <tr>
         <th>身分證後5碼</th>
-        <th>同意</th>
         <th>簽名</th>
-        <th>操作</th>
+        <th>送出時間</th>
+        <th>動作</th>
       </tr>
     </thead>
-    <tbody id="signaturesTable"></tbody>
+    <tbody id="tableBody"></tbody>
   </table>
 </div>
+
+<div id="loginDiv">
+  <h1>管理者登入</h1>
+  <input type="email" id="email" placeholder="Email"><br>
+  <input type="password" id="password" placeholder="Password"><br>
+  <button id="loginBtn">登入</button>
+  <p id="status"></p>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-import jsPDF from 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
+import { getFirestore, collection, onSnapshot, doc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+import jsPDF from "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
 
 // Firebase 配置
 const firebaseConfig = {
@@ -64,80 +62,102 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-const loginForm = document.getElementById('loginForm');
-const loginStatus = document.getElementById('loginStatus');
-const loginDiv = document.getElementById('loginDiv');
-const adminDiv = document.getElementById('adminDiv');
-const logoutBtn = document.getElementById('logoutBtn');
-const signaturesTable = document.getElementById('signaturesTable');
+const loginDiv = document.getElementById("loginDiv");
+const mainContent = document.getElementById("mainContent");
+const tableBody = document.getElementById("tableBody");
+const statusText = document.getElementById("status");
 
-loginForm.addEventListener('submit', async (e)=>{
-  e.preventDefault();
-  const email = document.getElementById('email').value;
-  const password = document.getElementById('password').value;
-  try{
-    await signInWithEmailAndPassword(auth,email,password);
-    loginStatus.textContent = "登入成功！";
-  }catch(err){
-    console.error(err);
-    loginStatus.textContent = "登入失敗：" + err.message;
-  }
-});
+// 登入按鈕
+document.getElementById("loginBtn").addEventListener("click", async () => {
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value.trim();
+  statusText.textContent = "";
 
-logoutBtn.addEventListener('click', async ()=>{
-  await signOut(auth);
-});
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
 
-onAuthStateChanged(auth, async (user)=>{
-  if(user){
+    if(user.email !== "jye637@tsw.kh.edu.tw") {
+      statusText.textContent = "您不是管理者，無法登入。";
+      await auth.signOut();
+      return;
+    }
+
+    // 登入成功
     loginDiv.style.display = "none";
-    adminDiv.style.display = "block";
-    await loadSignatures();
-  }else{
-    loginDiv.style.display = "block";
-    adminDiv.style.display = "none";
-    signaturesTable.innerHTML = "";
+    mainContent.style.display = "block";
+    loadSignaturesRealtime();
+
+  } catch(error) {
+    console.error(error);
+    statusText.textContent = "登入失敗：" + error.message;
   }
 });
 
-async function loadSignatures(){
-  signaturesTable.innerHTML = "";
-  try{
-    const querySnapshot = await getDocs(collection(db,"signatures"));
-    querySnapshot.forEach(doc=>{
-      const data = doc.data();
-      const tr = document.createElement('tr');
+// 即時監聽 signatures
+function loadSignaturesRealtime() {
+  const colRef = collection(db, "signatures");
+
+  onSnapshot(colRef, (snapshot) => {
+    tableBody.innerHTML = ""; 
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${data.idLast5}</td>
-        <td>${data.agree ? '同意' : '不同意'}</td>
         <td><img src="${data.signatureDataUrl}" width="150"></td>
-        <td><button onclick="generatePDF('${doc.id}')">生成PDF</button></td>
+        <td>${data.timestamp?.toDate().toLocaleString() || ""}</td>
+        <td><button onclick="generatePDF('${docSnap.id}')">產生PDF</button></td>
       `;
-      signaturesTable.appendChild(tr);
+      tableBody.appendChild(tr);
     });
-  }catch(err){
-    console.error(err);
-    alert("讀取資料失敗：" + err.message);
-  }
+  }, (error) => {
+    console.error("監聽錯誤:", error);
+    alert("監聽資料失敗：" + error.message);
+  });
 }
 
-// PDF 生成
-window.generatePDF = async function(docId){
-  try{
-    const docRef = collection(db,"signatures");
-    const querySnapshot = await getDocs(docRef);
-    let data = null;
-    querySnapshot.forEach(doc=>{
-      if(doc.id === docId) data = doc.data();
-    });
-    if(!data){ alert("找不到資料"); return; }
+// 生成 PDF
+window.generatePDF = async function(docId) {
+  try {
+    const docRef = doc(db, "signatures", docId);
+    const docSnap = await getDoc(docRef);
+    if(!docSnap.exists()) { alert("找不到該資料"); return; }
+    const data = docSnap.data();
 
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF();
+
+    pdf.setFontSize(14);
+    pdf.text("蔡文國民小學資通安全保密同意書", 15, 20);
     pdf.setFontSize(12);
-    pdf.text("蔡文國民小學資通安全保密同意書",20,20);
-    pdf.text("身分證後5碼：" + data.idLast5,20,30);
-    pdf.text("同意：" + (data.agree ? "同意" : "不同意"),20,40);
-    pdf.text("條款如下：",20,50);
     const terms = [
-      "1. 於業務上所知悉之機敏資料
+      "1. 於業務上所知悉之機敏資料及運用之資通系統等，應善盡保管及保密之責。",
+      "2. 相關業務之資訊、文件，不得私自洩漏與業務無關之人員。",
+      "3. 使用即時通訊軟體傳遞機關內部公務訊息，其內容不得涉及機密資料。",
+      "4. 遵守本單位資通安全相關之法令及規定。",
+      "5. 如有危害本單位資通安全之行為，願負相關之責任。"
+    ];
+    terms.forEach((line, index) => pdf.text(line, 15, 30 + index*10));
+
+    pdf.text(`身分證後5碼: ${data.idLast5}`, 15, 85);
+
+    // 簽名
+    const img = new Image();
+    img.src = data.signatureDataUrl;
+    img.onload = function() {
+      pdf.addImage(img, 'PNG', 15, 95, 180, 60);
+      pdf.save(`資安同意書_${data.idLast5}.pdf`);
+    };
+  } catch(error) {
+    console.error(error);
+    alert("生成 PDF 失敗：" + error.message);
+  }
+};
+</script>
+
+<!-- jsPDF CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+</body>
+</html>
