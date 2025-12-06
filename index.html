@@ -7,57 +7,44 @@
 <style>
 body{font-family:Noto Sans TC,sans-serif;background:#f5f5f5;padding:20px;}
 .container{max-width:800px;margin:0 auto;background:#fff;padding:30px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1);}
-h1{text-align:center;color:#006600;}
+h1{text-align:center;color:#003366;}
 label{display:block;margin-top:15px;}
 input[type="text"]{padding:8px;width:150px;border-radius:5px;border:1px solid #ccc;}
 button{margin-top:20px;padding:10px 20px;background:#006600;color:#fff;border:none;border-radius:5px;cursor:pointer;}
 button:hover{background:#004d00;}
 canvas{border:1px solid #ccc;margin-top:5px;}
 #status{color:green;margin-top:10px;}
-section { background-color: #ffffff; padding: 20px; margin: 20px auto; max-width: 800px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);}
-ol { margin-left: 20px; }
-p.contact { margin-top: 20px; font-weight: bold; }
-hr { margin: 30px 0; border: 0; border-top: 1px solid #ccc; }
+#currentTime{margin-left:15px;font-weight:bold;color:#006600;}
 </style>
 </head>
 <body>
 <div class="container">
-
 <h1>蔡文國民小學資通安全保密同意書</h1>
+
 <section>
-  <p>依據本校資訊安全維護計畫要求全校教職員簽署資通保密同意書如下：</p>
-  <p>立書同意人於蔡文國民小學任職，因業務涉及單位重要之資訊及資通系統，故同意下列保密事項：</p>
-  <ol>
-    <li>於業務上所知悉之機敏資料及運用之資通系統等，應善盡保管及保密之責。</li>
-    <li>相關業務之資訊、文件，不得私自洩漏與業務無關之人員。</li>
-    <li>使用即時通訊軟體傳遞機關內部公務訊息，其內容不得涉及機密資料。</li>
-    <li>遵守本單位資通安全相關之法令及規定。</li>
-    <li>如有危害本單位資通安全之行為，願負相關之責任。</li>
-  </ol>
-  <p class="contact">相關問題或疑義請洽教務處資訊組，07-6076268#723</p>
+<p>依據本校資訊安全維護計畫要求全校教職員簽署資通保密同意書如下：</p>
+<p>立書同意人於蔡文國民小學任職，因業務涉及單位重要之資訊及資通系統，故同意下列保密事項：</p>
+<ol>
+  <li>於業務上所知悉之機敏資料及運用之資通系統等，應善盡保管及保密之責。</li>
+  <li>相關業務之資訊、文件，不得私自洩漏與業務無關之人員。</li>
+  <li>使用即時通訊軟體傳遞機關內部公務訊息，其內容不得涉及機密資料。</li>
+  <li>遵守本單位資通安全相關之法令及規定。</li>
+  <li>如有危害本單位資通安全之行為，願負相關之責任。</li>
+</ol>
+<p class="contact">相關問題或疑義請洽教務處資訊組，07-6076268#723</p>
 </section>
 
 <hr>
 
-<h1>IT Security Confidentiality Agreement of Caiwen Elementary School</h1>
-<section>
-  <p>According to the school's IT security maintenance plan, all faculty and staff are required to sign the following confidentiality agreement:</p>
-  <ol>
-    <li>Properly safeguard and maintain confidentiality of any sensitive information and IT systems encountered during work.</li>
-    <li>Do not disclose any work-related information or documents to unauthorized personnel.</li>
-    <li>When using instant messaging software to transmit internal official messages, ensure the content does not involve confidential information.</li>
-    <li>Comply with the school's IT security-related laws and regulations.</li>
-    <li>Accept responsibility for any actions that may compromise the school's IT security.</li>
-  </ol>
-  <p class="contact">For any questions or concerns, please contact the IT Section of the Academic Affairs Office at 07-6076268#723</p>
-</section>
-
 <form id="consentForm">
-  <label><input type="checkbox" id="agree"> 我同意</label>
-  <label>請輸入身分證號後5碼：<input type="text" id="idLast5" maxlength="5"></label>
-  <label>請簽名：</label>
-  <canvas id="signatureCanvas" width="400" height="150"></canvas>
-  <button type="button" id="submitBtn">送出資料</button>
+    <label><input type="checkbox" id="agree"> 我同意</label>
+    <label>請輸入身分證號後5碼：<input type="text" id="idLast5" maxlength="5"></label>
+    <label>請簽名：</label>
+    <canvas id="signatureCanvas" width="400" height="150"></canvas>
+    <div style="margin-top:10px;">
+        <button type="button" id="submitBtn">送出資料</button>
+        <span id="currentTime"></span>
+    </div>
 </form>
 <p id="status"></p>
 </div>
@@ -68,6 +55,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebas
 import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 import { getStorage, ref, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-storage.js";
 
+// Firebase 設定
 const firebaseConfig = {
   apiKey: "AIzaSyCk-1B0IwsSOwlNIn71-LofJRoHzgh6kJQ",
   authDomain: "signup-f163b.firebaseapp.com",
@@ -86,53 +74,52 @@ const canvas = document.getElementById("signatureCanvas");
 const ctx = canvas.getContext("2d");
 let drawing = false;
 
-canvas.addEventListener("mousedown", e => {
-  drawing = true;
-  ctx.beginPath();
-  ctx.moveTo(e.offsetX, e.offsetY);
-});
-canvas.addEventListener("mousemove", e => {
-  if(drawing){
-    ctx.lineTo(e.offsetX, e.offsetY);
-    ctx.stroke();
-  }
-});
+canvas.addEventListener("mousedown", e => { drawing = true; ctx.moveTo(e.offsetX, e.offsetY); });
+canvas.addEventListener("mousemove", e => { if(drawing) { ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); } });
 canvas.addEventListener("mouseup", () => drawing = false);
 canvas.addEventListener("mouseleave", () => drawing = false);
 
+// 顯示當前時間
+function updateCurrentTime() {
+  const now = new Date();
+  const formatted = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0') + ' ' +
+                    String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0') + ':' + String(now.getSeconds()).padStart(2,'0');
+  document.getElementById("currentTime").textContent = formatted;
+}
+setInterval(updateCurrentTime, 1000);
+updateCurrentTime();
+
+// 送出資料
 document.getElementById("submitBtn").addEventListener("click", async () => {
-  const agree = document.getElementById("agree").checked;
-  const idLast5 = document.getElementById("idLast5").value.trim();
+    const agree = document.getElementById("agree").checked;
+    const idLast5 = document.getElementById("idLast5").value.trim();
 
-  if(!agree){ alert("請勾選同意"); return; }
-  if(idLast5.length !== 5){ alert("請輸入正確的身分證後5碼"); return; }
+    if(!agree) { alert("請勾選同意"); return; }
+    if(idLast5.length !== 5) { alert("請輸入正確的身分證後5碼"); return; }
 
-  const dataUrl = canvas.toDataURL();
-  const fileName = `signatures/${idLast5}_${Date.now()}.png`;
-  const storageRef = ref(storage, fileName);
+    const dataUrl = canvas.toDataURL();
+    const fileName = `signatures/${idLast5}_${Date.now()}.png`;
+    const storageRef = ref(storage, fileName);
 
-  try {
-    await uploadString(storageRef, dataUrl, "data_url");
-    const signatureUrl = await getDownloadURL(storageRef);
+    try {
+        await uploadString(storageRef, dataUrl, "data_url");
+        const signatureUrl = await getDownloadURL(storageRef);
 
-    await addDoc(collection(db, "signatures"), {
-      agree,
-      idLast5,
-      signatureUrl,
-      timestamp: serverTimestamp()
-    });
+        await addDoc(collection(db, "signatures"), {
+            agree,
+            idLast5,
+            signatureUrl,
+            timestamp: serverTimestamp()
+        });
 
-    alert("我們已經收到您的同意書了");
-
-    // 清空表單
-    document.getElementById("agree").checked = false;
-    document.getElementById("idLast5").value = "";
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  } catch (error) {
-    console.error(error);
-    alert("送出失敗，請稍後再試");
-  }
+        alert("我們已經收到您的同意書了");
+        document.getElementById("agree").checked = false;
+        document.getElementById("idLast5").value = "";
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    } catch (error) {
+        console.error(error);
+        alert("送出失敗，請稍後再試");
+    }
 });
 </script>
 </body>
