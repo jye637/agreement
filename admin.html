@@ -15,6 +15,8 @@ img.signature{width:200px;height:auto;}
 </style>
 </head>
 <body>
+
+
 <div class="container">
 <h1>管理後臺 - 同意書紀錄</h1>
 
@@ -25,6 +27,7 @@ img.signature{width:200px;height:auto;}
 <th>是否同意</th>
 <th>簽名圖片</th>
 <th>送出時間</th>
+    <button id="printBtn" style="margin-bottom:20px;padding:10px 15px;background:#006600;color:#fff;border:none;border-radius:5px;cursor:pointer;">列印 PDF</button>
 </tr>
 </thead>
 <tbody>
@@ -68,6 +71,10 @@ async function loadRecords(){
 }
 
 loadRecords();
+  document.getElementById("printBtn").addEventListener("click", () => {
+  window.print();
+});
+
 </script>
 </body>
 </html>
