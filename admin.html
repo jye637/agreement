@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>114管理者後台 - 資通安全同意書</title>
+<title>管理者後台 - 資通安全同意書</title>
 <style>
 body{font-family:Noto Sans TC,sans-serif;background:#f5f5f5;padding:20px;}
 .container{max-width:900px;margin:0 auto;background:#fff;padding:30px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1);}
@@ -12,7 +12,6 @@ table{width:100%;border-collapse:collapse;margin-top:20px;}
 th, td{border:1px solid #ccc;padding:8px;text-align:center;}
 th{background:#eee;}
 button{padding:5px 10px;margin:2px;}
-#loginForm{margin-bottom:20px;}
 </style>
 </head>
 <body>
@@ -20,14 +19,7 @@ button{padding:5px 10px;margin:2px;}
 <div class="container">
 <h1>管理者後台 - 資通安全同意書</h1>
 
-<!-- 登入表單 -->
-<form id="loginForm">
-  <input type="email" id="email" placeholder="Email">
-  <input type="password" id="password" placeholder="Password">
-  <button type="submit">登入</button>
-</form>
-
-<div id="adminContent" style="display:none;">
+<div id="adminContent">
   <table>
     <thead>
       <tr>
@@ -47,7 +39,6 @@ button{padding:5px 10px;margin:2px;}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
 import { getFirestore, collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
 
 // Firebase 配置
 const firebaseConfig = {
@@ -60,31 +51,11 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const auth = getAuth(app);
-
-const loginForm = document.getElementById("loginForm");
-const adminContent = document.getElementById("adminContent");
 const tableBody = document.getElementById("signaturesTableBody");
 
 // Noto Sans TC Base64 字型
-// 此為範例，請替換成完整 Base64 字串
-const notoSansTC = "AAEAAAASAQAABAAgR0RFRrRCsIIAA..."; 
-
-// 登入事件
-loginForm.addEventListener("submit", async e => {
-  e.preventDefault();
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
-  try {
-    await signInWithEmailAndPassword(auth, email, password);
-    alert("登入成功: " + email);
-    loginForm.style.display = "none";
-    adminContent.style.display = "block";
-    loadSignatures();
-  } catch(err){
-    alert("登入失敗：" + err.message);
-  }
-});
+// 請自行替換為完整 Base64 字串
+const notoSansTC = "AAEAAAASAQAABAAgR0RFRrRCsIIAA...";
 
 // 載入簽名資料
 async function loadSignatures(){
@@ -108,6 +79,9 @@ async function loadSignatures(){
   }
 }
 
+// 自動載入
+loadSignatures();
+
 // 生成 PDF
 window.generatePDF = async function(docId){
   try {
@@ -121,5 +95,36 @@ window.generatePDF = async function(docId){
     const data = docSnap.data();
 
     const pdf = new jsPDF();
-    // 註冊字型
-    pdf.addFileToVFS("NotoSansT
+    pdf.addFileToVFS("NotoSansTC.ttf", notoSansTC);
+    pdf.addFont("NotoSansTC.ttf", "NotoSansTC", "normal");
+    pdf.setFont("NotoSansTC");
+    pdf.setFontSize(14);
+    pdf.text("蔡文國民小學資通安全保密同意書", 10, 20);
+    pdf.setFontSize(12);
+    const content = `
+依據本校資訊安全維護計畫要求全校教職員簽署資通保密同意書如下：
+
+1. 於業務上所知悉之機敏資料及運用之資通系統等，應善盡保管及保密之責。
+2. 相關業務之資訊、文件，不得私自洩漏與業務無關之人員。
+3. 使用即時通訊軟體傳遞機關內部公務訊息，其內容不得涉及機密資料。
+4. 遵守本單位資通安全相關之法令及規定。
+5. 如有危害本單位資通安全之行為，願負相關之責任。
+    `;
+    pdf.text(content, 10, 30);
+
+    const img = new Image();
+    img.src = data.signatureDataUrl;
+    img.onload = function(){
+      pdf.addImage(img, "PNG", 10, 120, 180, 50);
+      pdf.save(`同意書_${data.idLast5}.pdf`);
+    };
+  } catch(err){
+    console.error(err);
+    alert("生成 PDF 失敗：" + err.message);
+  }
+}
+</script>
+
+</div>
+</body>
+</html>
