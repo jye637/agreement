@@ -75,14 +75,46 @@ const storage = getStorage(app);
 // Canvas 簽名功能
 const canvas = document.getElementById("signatureCanvas");
 const ctx = canvas.getContext("2d");
-ctx.lineWidth = 2;
-ctx.strokeStyle = "#000000";
 let drawing = false;
 
 canvas.addEventListener("mousedown", e => { drawing = true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); });
-canvas.addEventListener("mousemove", e => { if(drawing){ ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); } });
+canvas.addEventListener("mousemove", e => { if(drawing){ ctx.lineTo(e.offsetX,e.offsetY); ctx.stroke(); } });
 canvas.addEventListener("mouseup", () => drawing = false);
 canvas.addEventListener("mouseleave", () => drawing = false);
+
+document.getElementById("consentForm").addEventListener("submit", async e => {
+  e.preventDefault();
+
+  const agree = document.getElementById("agree").checked;
+  const idLast5 = document.getElementById("idLast5").value.trim();
+  if(!agree){ alert("請勾選同意"); return; }
+  if(idLast5.length !== 5){ alert("請輸入正確的身分證後5碼"); return; }
+
+  try {
+    const dataUrl = canvas.toDataURL();
+    const fileName = `signatures/${idLast5}_${Date.now()}.png`;
+    const storageRef = ref(storage, fileName);
+
+    await uploadString(storageRef, dataUrl, "data_url");
+    const signatureUrl = await getDownloadURL(storageRef);
+
+    await addDoc(collection(db, "signatures"), {
+      agree,
+      idLast5,
+      signatureUrl,
+      timestamp: serverTimestamp()
+    });
+
+    document.getElementById("status").innerText = `我們已經收到您的同意書了 (${new Date().toLocaleString()})`;
+    document.getElementById("agree").checked = false;
+    document.getElementById("idLast5").value = "";
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+  } catch(err) {
+    console.error(err);
+    alert("送出失敗，請稍後再試");
+  }
+});
+
 
 // 顯示當前時間
 function updateTime() {
