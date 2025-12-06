@@ -8,50 +8,48 @@
 body{font-family:Noto Sans TC,sans-serif;background:#f5f5f5;padding:20px;}
 .container{max-width:900px;margin:0 auto;background:#fff;padding:30px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1);}
 h1{text-align:center;color:#006600;}
-table{width:100%;border-collapse:collapse;margin-top:20px;}
-th,td{border:1px solid #ccc;padding:8px;text-align:center;}
-button{padding:5px 10px;background:#006600;color:#fff;border:none;border-radius:5px;cursor:pointer;}
+button{margin:5px;padding:8px 15px;background:#006600;color:#fff;border:none;border-radius:5px;cursor:pointer;}
 button:hover{background:#004d00;}
-#pdfContent{display:none; padding:20px; background:#fff; border:1px solid #ccc;}
-canvas{border:1px solid #ccc;}
+table{width:100%;border-collapse:collapse;margin-top:20px;}
+th, td{border:1px solid #ccc;padding:8px;text-align:center;}
+#loginForm{margin-bottom:20px;}
 </style>
 </head>
 <body>
-
 <div class="container">
 <h1>資安同意書管理後台</h1>
 
-<table id="signaturesTable">
-  <thead>
-    <tr>
-      <th>身分證後5碼</th>
-      <th>簽名</th>
-      <th>時間</th>
-      <th>操作</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
+<div id="loginDiv">
+  <p>請使用管理員帳號登入：</p>
+  <form id="loginForm">
+    <input type="email" id="email" placeholder="Email" required>
+    <input type="password" id="password" placeholder="密碼" required>
+    <button type="submit">登入</button>
+  </form>
+  <p id="loginStatus"></p>
+</div>
 
-<!-- PDF 生成隱藏區 -->
-<div id="pdfContent">
-  <h2>蔡文國民小學資通安全保密同意書</h2>
-  <p>依據本校資訊安全維護計畫要求全校教職員簽署資通保密同意書如下：</p>
-  <ol>
-    <li>於業務上所知悉之機敏資料及運用之資通系統等，應善盡保管及保密之責。</li>
-    <li>相關業務之資訊、文件，不得私自洩漏與業務無關之人員。</li>
-    <li>使用即時通訊軟體傳遞機關內部公務訊息，其內容不得涉及機密資料。</li>
-    <li>遵守本單位資通安全相關之法令及規定。</li>
-    <li>如有危害本單位資通安全之行為，願負相關之責任。</li>
-  </ol>
-  <p>身分證後5碼：<span id="pdfIdLast5"></span></p>
-  <p>簽名：</p>
-  <img id="pdfSignature" src="" alt="簽名" width="400">
+<div id="adminDiv" style="display:none;">
+  <button id="logoutBtn">登出</button>
+  <table>
+    <thead>
+      <tr>
+        <th>身分證後5碼</th>
+        <th>同意</th>
+        <th>簽名</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody id="signaturesTable"></tbody>
+  </table>
+</div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, getDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+import jsPDF from 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
 
 // Firebase 配置
 const firebaseConfig = {
@@ -64,64 +62,82 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
 
-// 取得所有簽名資料
+const loginForm = document.getElementById('loginForm');
+const loginStatus = document.getElementById('loginStatus');
+const loginDiv = document.getElementById('loginDiv');
+const adminDiv = document.getElementById('adminDiv');
+const logoutBtn = document.getElementById('logoutBtn');
+const signaturesTable = document.getElementById('signaturesTable');
+
+loginForm.addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  try{
+    await signInWithEmailAndPassword(auth,email,password);
+    loginStatus.textContent = "登入成功！";
+  }catch(err){
+    console.error(err);
+    loginStatus.textContent = "登入失敗：" + err.message;
+  }
+});
+
+logoutBtn.addEventListener('click', async ()=>{
+  await signOut(auth);
+});
+
+onAuthStateChanged(auth, async (user)=>{
+  if(user){
+    loginDiv.style.display = "none";
+    adminDiv.style.display = "block";
+    await loadSignatures();
+  }else{
+    loginDiv.style.display = "block";
+    adminDiv.style.display = "none";
+    signaturesTable.innerHTML = "";
+  }
+});
+
 async function loadSignatures(){
-  const tableBody = document.querySelector("#signaturesTable tbody");
-  tableBody.innerHTML = "";
-  const q = query(collection(db, "signatures"), orderBy("timestamp","desc"));
-  const querySnapshot = await getDocs(q);
-  querySnapshot.forEach(docSnap=>{
-    const data = docSnap.data();
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${data.idLast5}</td>
-      <td><img src="${data.signatureDataUrl}" width="150"></td>
-      <td>${data.timestamp ? new Date(data.timestamp.seconds*1000).toLocaleString() : ""}</td>
-      <td><button onclick="generatePDF('${docSnap.id}')">生成 PDF</button></td>
-    `;
-    tableBody.appendChild(tr);
-  });
+  signaturesTable.innerHTML = "";
+  try{
+    const querySnapshot = await getDocs(collection(db,"signatures"));
+    querySnapshot.forEach(doc=>{
+      const data = doc.data();
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${data.idLast5}</td>
+        <td>${data.agree ? '同意' : '不同意'}</td>
+        <td><img src="${data.signatureDataUrl}" width="150"></td>
+        <td><button onclick="generatePDF('${doc.id}')">生成PDF</button></td>
+      `;
+      signaturesTable.appendChild(tr);
+    });
+  }catch(err){
+    console.error(err);
+    alert("讀取資料失敗：" + err.message);
+  }
 }
 
-// 生成 PDF
+// PDF 生成
 window.generatePDF = async function(docId){
-  const docRef = doc(db, "signatures", docId);
-  const docSnap = await getDoc(docRef);
-  if(!docSnap.exists()){
-    alert("資料不存在");
-    return;
-  }
-  const data = docSnap.data();
-
-  document.getElementById("pdfIdLast5").textContent = data.idLast5;
-  document.getElementById("pdfSignature").src = data.signatureDataUrl;
-  const pdfContent = document.getElementById("pdfContent");
-  pdfContent.style.display = "block";
-
-  // 生成 PDF
-  html2canvas(pdfContent).then(canvas=>{
-    const imgData = canvas.toDataURL("image/png");
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({
-      orientation:"p",
-      unit:"px",
-      format:[canvas.width,canvas.height]
+  try{
+    const docRef = collection(db,"signatures");
+    const querySnapshot = await getDocs(docRef);
+    let data = null;
+    querySnapshot.forEach(doc=>{
+      if(doc.id === docId) data = doc.data();
     });
-    pdf.addImage(imgData,'PNG',0,0,canvas.width,canvas.height);
-    pdf.save("資安同意書_"+data.idLast5+".pdf");
-    pdfContent.style.display = "none";
-  });
-};
+    if(!data){ alert("找不到資料"); return; }
 
-// 載入頁面時抓資料
-loadSignatures();
-</script>
-
-<!-- jsPDF 與 html2canvas -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
-</div>
-</body>
-</html>
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF();
+    pdf.setFontSize(12);
+    pdf.text("蔡文國民小學資通安全保密同意書",20,20);
+    pdf.text("身分證後5碼：" + data.idLast5,20,30);
+    pdf.text("同意：" + (data.agree ? "同意" : "不同意"),20,40);
+    pdf.text("條款如下：",20,50);
+    const terms = [
+      "1. 於業務上所知悉之機敏資料
