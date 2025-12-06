@@ -4,59 +4,56 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>資安同意書管理後台</title>
-<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 body{font-family:Noto Sans TC,sans-serif;background:#f5f5f5;padding:20px;}
 .container{max-width:900px;margin:0 auto;background:#fff;padding:30px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1);}
 h1{text-align:center;color:#006600;}
 table{width:100%;border-collapse:collapse;margin-top:20px;}
-th,td{border:1px solid #ccc;padding:8px;text-align:left;}
-button{padding:5px 10px;cursor:pointer;margin-right:5px;}
-#pdfContent{display:none;}
+th,td{border:1px solid #ccc;padding:8px;text-align:center;}
+button{padding:5px 10px;background:#006600;color:#fff;border:none;border-radius:5px;cursor:pointer;}
+button:hover{background:#004d00;}
+#pdfContent{display:none; padding:20px; background:#fff; border:1px solid #ccc;}
+canvas{border:1px solid #ccc;}
 </style>
 </head>
 <body>
 
 <div class="container">
 <h1>資安同意書管理後台</h1>
-<div id="loginStatus"></div>
 
 <table id="signaturesTable">
-<thead>
-<tr>
-<th>身分證後5碼</th>
-<th>同意時間</th>
-<th>操作</th>
-</tr>
-</thead>
-<tbody></tbody>
+  <thead>
+    <tr>
+      <th>身分證後5碼</th>
+      <th>簽名</th>
+      <th>時間</th>
+      <th>操作</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
 </table>
-</div>
 
+<!-- PDF 生成隱藏區 -->
 <div id="pdfContent">
-<h2>蔡文國民小學資通安全保密同意書</h2>
-<p>依據本校資訊安全維護計畫要求全校教職員簽署資通保密同意書如下：</p>
-<ol>
-  <li>於業務上所知悉之機敏資料及運用之資通系統等，應善盡保管及保密之責。</li>
-  <li>相關業務之資訊、文件，不得私自洩漏與業務無關之人員。</li>
-  <li>使用即時通訊軟體傳遞機關內部公務訊息，其內容不得涉及機密資料。</li>
-  <li>遵守本單位資通安全相關之法令及規定。</li>
-  <li>如有危害本單位資通安全之行為，願負相關之責任。</li>
-</ol>
-<p>相關問題或疑義請洽教務處資訊組，07-6076268#723</p>
-<p>身分證後5碼：<span id="pdfIdLast5"></span></p>
-<img id="pdfSignature" style="width:300px;border:1px solid #ccc;" />
+  <h2>蔡文國民小學資通安全保密同意書</h2>
+  <p>依據本校資訊安全維護計畫要求全校教職員簽署資通保密同意書如下：</p>
+  <ol>
+    <li>於業務上所知悉之機敏資料及運用之資通系統等，應善盡保管及保密之責。</li>
+    <li>相關業務之資訊、文件，不得私自洩漏與業務無關之人員。</li>
+    <li>使用即時通訊軟體傳遞機關內部公務訊息，其內容不得涉及機密資料。</li>
+    <li>遵守本單位資通安全相關之法令及規定。</li>
+    <li>如有危害本單位資通安全之行為，願負相關之責任。</li>
+  </ol>
+  <p>身分證後5碼：<span id="pdfIdLast5"></span></p>
+  <p>簽名：</p>
+  <img id="pdfSignature" src="" alt="簽名" width="400">
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-import { getFirestore, collection, getDocs, doc } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, getDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
+// Firebase 配置
 const firebaseConfig = {
   apiKey: "AIzaSyCk-1B0IwsSOwlNIn71-LofJRoHzgh6kJQ",
   authDomain: "signup-f163b.firebaseapp.com",
@@ -66,58 +63,43 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
 const db = getFirestore(app);
 
-// --- 監控登入狀態 ---
-onAuthStateChanged(auth, async user => {
-  if(user && user.email){
-    document.getElementById("loginStatus").textContent = "已登入：" + user.email;
-    loadSignatures();
-  } else {
-    document.getElementById("loginStatus").textContent = "請先登入";
-    // 這裡用 prompt 簡單登入
-    const email = prompt("請輸入管理員Email");
-    const password = prompt("請輸入密碼");
-    try{
-      await signInWithEmailAndPassword(auth,email,password);
-    }catch(e){
-      alert("登入失敗:"+e.message);
-    }
-  }
-});
-
-// --- 讀取簽名資料 ---
+// 取得所有簽名資料
 async function loadSignatures(){
   const tableBody = document.querySelector("#signaturesTable tbody");
   tableBody.innerHTML = "";
-  const querySnapshot = await getDocs(collection(db,"signatures"));
+  const q = query(collection(db, "signatures"), orderBy("timestamp","desc"));
+  const querySnapshot = await getDocs(q);
   querySnapshot.forEach(docSnap=>{
     const data = docSnap.data();
     const tr = document.createElement("tr");
-    const time = data.timestamp ? new Date(data.timestamp.seconds*1000).toLocaleString() : "";
     tr.innerHTML = `
       <td>${data.idLast5}</td>
-      <td>${time}</td>
+      <td><img src="${data.signatureDataUrl}" width="150"></td>
+      <td>${data.timestamp ? new Date(data.timestamp.seconds*1000).toLocaleString() : ""}</td>
       <td><button onclick="generatePDF('${docSnap.id}')">生成 PDF</button></td>
     `;
     tableBody.appendChild(tr);
   });
 }
 
-// --- 生成 PDF ---
+// 生成 PDF
 window.generatePDF = async function(docId){
-  const docRef = doc(db,"signatures",docId);
-  const docSnap = await getDocs(collection(db,"signatures"));
-  const data = (await docRef.get()).data?.() || (await docRef.get());
-  const pdfId = document.getElementById("pdfIdLast5");
-  const pdfSig = document.getElementById("pdfSignature");
-  pdfId.textContent = data.idLast5;
-  pdfSig.src = data.signatureDataUrl;
+  const docRef = doc(db, "signatures", docId);
+  const docSnap = await getDoc(docRef);
+  if(!docSnap.exists()){
+    alert("資料不存在");
+    return;
+  }
+  const data = docSnap.data();
 
+  document.getElementById("pdfIdLast5").textContent = data.idLast5;
+  document.getElementById("pdfSignature").src = data.signatureDataUrl;
   const pdfContent = document.getElementById("pdfContent");
   pdfContent.style.display = "block";
 
+  // 生成 PDF
   html2canvas(pdfContent).then(canvas=>{
     const imgData = canvas.toDataURL("image/png");
     const { jsPDF } = window.jspdf;
@@ -131,7 +113,15 @@ window.generatePDF = async function(docId){
     pdfContent.style.display = "none";
   });
 };
+
+// 載入頁面時抓資料
+loadSignatures();
 </script>
 
+<!-- jsPDF 與 html2canvas -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+</div>
 </body>
 </html>
