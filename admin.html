@@ -3,53 +3,42 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>管理後台 - 資安同意書簽名</title>
+<title>114資安同意書管理後台</title>
 <style>
 body{font-family:Noto Sans TC,sans-serif;background:#f5f5f5;padding:20px;}
 .container{max-width:900px;margin:0 auto;background:#fff;padding:30px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1);}
 h1{text-align:center;color:#006600;}
 table{width:100%;border-collapse:collapse;margin-top:20px;}
-table, th, td{border:1px solid #ccc;}
-th, td{padding:10px;text-align:center;}
-button{padding:5px 10px;background:#006600;color:#fff;border:none;border-radius:5px;cursor:pointer;}
+th,td{border:1px solid #ccc;padding:8px;text-align:center;}
+button{padding:5px 10px;margin:2px;background:#006600;color:#fff;border:none;border-radius:5px;cursor:pointer;}
 button:hover{background:#004d00;}
-#loginDiv{max-width:400px;margin:50px auto;text-align:center;}
-#loginDiv input{padding:8px;width:90%;margin:5px 0;border-radius:5px;border:1px solid #ccc;}
-#status{color:red;font-weight:bold;margin-top:10px;text-align:center;}
 </style>
 </head>
 <body>
+<div class="container">
+<h1>資安同意書管理後台</h1>
+<p>登入帳號：<span id="userEmail"></span> <button id="logoutBtn">登出</button></p>
 
-<div class="container" id="mainContent" style="display:none;">
-  <h1>資安同意書簽名管理後台</h1>
-  <table>
-    <thead>
-      <tr>
-        <th>身分證後5碼</th>
-        <th>簽名</th>
-        <th>送出時間</th>
-        <th>動作</th>
-      </tr>
-    </thead>
-    <tbody id="tableBody"></tbody>
-  </table>
-</div>
-
-<div id="loginDiv">
-  <h1>管理者登入</h1>
-  <input type="email" id="email" placeholder="Email"><br>
-  <input type="password" id="password" placeholder="Password"><br>
-  <button id="loginBtn">登入</button>
-  <p id="status"></p>
+<table id="signaturesTable">
+  <thead>
+    <tr>
+      <th>身分證後5碼</th>
+      <th>簽名</th>
+      <th>送出時間</th>
+      <th>操作</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-import { getFirestore, collection, onSnapshot, doc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-import jsPDF from "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+import { getFirestore, collection, getDocs, doc } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+import { jsPDF } from "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.es.min.js";
 
-// Firebase 配置
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyCk-1B0IwsSOwlNIn71-LofJRoHzgh6kJQ",
   authDomain: "signup-f163b.firebaseapp.com",
@@ -61,103 +50,91 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
 
-const loginDiv = document.getElementById("loginDiv");
-const mainContent = document.getElementById("mainContent");
-const tableBody = document.getElementById("tableBody");
-const statusText = document.getElementById("status");
+const tableBody = document.querySelector("#signaturesTable tbody");
+const userEmailSpan = document.getElementById("userEmail");
+const logoutBtn = document.getElementById("logoutBtn");
 
-// 登入按鈕
-document.getElementById("loginBtn").addEventListener("click", async () => {
-  const email = document.getElementById("email").value.trim();
-  const password = document.getElementById("password").value.trim();
-  statusText.textContent = "";
+// 登出
+logoutBtn.addEventListener("click", () => signOut(auth));
 
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-
+// 偵測登入狀態
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
     if(user.email !== "jye637@tsw.kh.edu.tw") {
-      statusText.textContent = "您不是管理者，無法登入。";
-      await auth.signOut();
+      alert("非管理者無法進入後台");
+      await signOut(auth);
       return;
     }
-
-    // 登入成功
-    loginDiv.style.display = "none";
-    mainContent.style.display = "block";
-    loadSignaturesRealtime();
-
-  } catch(error) {
-    console.error(error);
-    statusText.textContent = "登入失敗：" + error.message;
+    userEmailSpan.textContent = user.email;
+    loadSignatures();
+  } else {
+    try {
+      await signInWithPopup(auth, provider);
+    } catch(e) {
+      console.error(e);
+      alert("登入失敗");
+    }
   }
 });
 
-// 即時監聽 signatures
-function loadSignaturesRealtime() {
-  const colRef = collection(db, "signatures");
-
-  onSnapshot(colRef, (snapshot) => {
-    tableBody.innerHTML = ""; 
+// 讀取簽名資料
+async function loadSignatures() {
+  tableBody.innerHTML = "";
+  try {
+    const snapshot = await getDocs(collection(db, "signatures"));
     snapshot.forEach(docSnap => {
       const data = docSnap.data();
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${data.idLast5}</td>
         <td><img src="${data.signatureDataUrl}" width="150"></td>
-        <td>${data.timestamp?.toDate().toLocaleString() || ""}</td>
-        <td><button onclick="generatePDF('${docSnap.id}')">產生PDF</button></td>
+        <td>${data.timestamp ? data.timestamp.toDate().toLocaleString() : "-"}</td>
+        <td><button data-id="${docSnap.id}">生成 PDF</button></td>
       `;
       tableBody.appendChild(tr);
+      tr.querySelector("button").addEventListener("click", () => generatePDF(data));
     });
-  }, (error) => {
-    console.error("監聽錯誤:", error);
-    alert("監聽資料失敗：" + error.message);
-  });
+  } catch(e) {
+    console.error(e);
+    alert("讀取資料失敗，請確認 Firestore 規則與登入狀態");
+  }
 }
 
 // 生成 PDF
-window.generatePDF = async function(docId) {
-  try {
-    const docRef = doc(db, "signatures", docId);
-    const docSnap = await getDoc(docRef);
-    if(!docSnap.exists()) { alert("找不到該資料"); return; }
-    const data = docSnap.data();
+function generatePDF(data) {
+  const pdf = new jsPDF();
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  let y = 10;
+  
+  pdf.setFontSize(16);
+  pdf.text("蔡文國民小學資通安全保密同意書", pageWidth / 2, y, {align: "center"});
+  y += 10;
+  
+  pdf.setFontSize(12);
+  const lines = [
+    "依據本校資訊安全維護計畫要求全校教職員簽署資通保密同意書如下：",
+    "1. 於業務上所知悉之機敏資料及運用之資通系統等，應善盡保管及保密之責。",
+    "2. 相關業務之資訊、文件，不得私自洩漏與業務無關之人員。",
+    "3. 使用即時通訊軟體傳遞機關內部公務訊息，其內容不得涉及機密資料。",
+    "4. 遵守本單位資通安全相關之法令及規定。",
+    "5. 如有危害本單位資通安全之行為，願負相關之責任。",
+    "",
+    `身分證後5碼: ${data.idLast5}`
+  ];
+  lines.forEach(line => {
+    pdf.text(line, 10, y);
+    y += 7;
+  });
 
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF();
-
-    pdf.setFontSize(14);
-    pdf.text("蔡文國民小學資通安全保密同意書", 15, 20);
-    pdf.setFontSize(12);
-    const terms = [
-      "1. 於業務上所知悉之機敏資料及運用之資通系統等，應善盡保管及保密之責。",
-      "2. 相關業務之資訊、文件，不得私自洩漏與業務無關之人員。",
-      "3. 使用即時通訊軟體傳遞機關內部公務訊息，其內容不得涉及機密資料。",
-      "4. 遵守本單位資通安全相關之法令及規定。",
-      "5. 如有危害本單位資通安全之行為，願負相關之責任。"
-    ];
-    terms.forEach((line, index) => pdf.text(line, 15, 30 + index*10));
-
-    pdf.text(`身分證後5碼: ${data.idLast5}`, 15, 85);
-
-    // 簽名
-    const img = new Image();
-    img.src = data.signatureDataUrl;
-    img.onload = function() {
-      pdf.addImage(img, 'PNG', 15, 95, 180, 60);
-      pdf.save(`資安同意書_${data.idLast5}.pdf`);
-    };
-  } catch(error) {
-    console.error(error);
-    alert("生成 PDF 失敗：" + error.message);
+  if (data.signatureDataUrl) {
+    // 加入簽名圖片
+    pdf.addImage(data.signatureDataUrl, "PNG", 10, y, 100, 50);
   }
-};
+
+  pdf.save(`Consent_${data.idLast5}.pdf`);
+}
 </script>
-
-<!-- jsPDF CDN -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
 </body>
 </html>
