@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>114-13管理者後台 - 資通安全同意書</title>
+<title>管理者後台 - 資通安全同意書</title>
 <style>
 body{font-family:Noto Sans TC,sans-serif;background:#f5f5f5;padding:20px;}
 .container{max-width:900px;margin:0 auto;background:#fff;padding:30px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1);}
@@ -37,16 +37,17 @@ button{padding:5px 10px;margin:2px;}
         <th>操作</th>
       </tr>
     </thead>
-    <tbody id="signaturesTableBody">
-    </tbody>
+    <tbody id="signaturesTableBody"></tbody>
   </table>
 </div>
 
+<!-- jsPDF UMD -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-import { jsPDF } from "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+import { getFirestore, collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
 
 // Firebase 配置
 const firebaseConfig = {
@@ -71,12 +72,12 @@ loginForm.addEventListener("submit", async e => {
   const email = document.getElementById("email").value;
   const password = document.getElementById("password").value;
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    alert("登入成功: " + userCredential.user.email);
+    await signInWithEmailAndPassword(auth, email, password);
+    alert("登入成功: " + email);
     loginForm.style.display = "none";
     adminContent.style.display = "block";
     loadSignatures();
-  } catch(err) {
+  } catch(err){
     alert("登入失敗：" + err.message);
   }
 });
@@ -97,7 +98,7 @@ async function loadSignatures(){
       `;
       tableBody.appendChild(tr);
     });
-  } catch(err) {
+  } catch(err){
     console.error(err);
     alert("讀取資料失敗，請檢查權限或網路");
   }
@@ -106,6 +107,7 @@ async function loadSignatures(){
 // 生成 PDF
 window.generatePDF = async function(docId){
   try {
+    const { jsPDF } = window.jspdf; // 正確取得 jsPDF UMD
     const docRef = doc(db, "signatures", docId);
     const docSnap = await getDoc(docRef);
     if(!docSnap.exists()){
@@ -142,8 +144,8 @@ window.generatePDF = async function(docId){
     alert("生成 PDF 失敗：" + err.message);
   }
 }
-
 </script>
+
 </div>
 </body>
 </html>
