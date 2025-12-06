@@ -1,162 +1,117 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>管理後臺</title>
-<style>
-body { font-family:Noto Sans TC, sans-serif; background:#f5f5f5; padding:20px;}
-h1 { text-align:center; color:#003366;}
-table { width:100%; border-collapse: collapse; margin-top:20px; background:#fff;}
-th, td { border:1px solid #ccc; padding:8px; text-align:center;}
-th { background-color:#006600; color:white;}
-img { max-width:150px; max-height:100px;}
-button { margin-top:15px; padding:8px 16px; background:#006600; color:#fff; border:none; border-radius:5px; cursor:pointer;}
-button:hover { background:#004d00;}
-#loginForm { max-width:400px; margin:50px auto; padding:30px; background:#fff; border-radius:10px; box-shadow:0 0 10px rgba(0,0,0,0.1);}
-#loginForm input { display:block; width:100%; padding:10px; margin:10px 0; border-radius:5px; border:1px solid #ccc;}
-#content { display:none; }
-</style>
+  <meta charset="UTF-8">
+  <title>報名管理後台</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f9f9f9;
+    }
+
+    #contentToPrint {
+      background: #fff;
+      padding: 20px;
+      border: 1px solid #ccc;
+      margin-bottom: 20px;
+    }
+
+    #signatureContainer {
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    canvas {
+      border: 1px solid #000;
+      background: #fff;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body>
 
-<div id="loginForm">
-  <h2>管理者登入</h2>
-  <input type="text" id="adminEmail" placeholder="Email">
-  <input type="password" id="adminPassword" placeholder="密碼">
-  <button id="loginBtn">登入</button>
-  <p id="loginStatus" style="color:red;"></p>
-</div>
+  <h1>報名管理後台</h1>
 
-<div id="content">
-<h1>資通安全同意書管理後臺</h1>
-<button id="downloadPDF">下載 PDF</button>
-<button id="logoutBtn">登出</button>
-<table id="signaturesTable">
-  <thead>
-    <tr>
-      <th>身分證後五碼</th>
-      <th>簽名</th>
-      <th>送出時間</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
-</div>
+  <!-- 報名內容 -->
+  <div id="contentToPrint">
+    <h2>學生報名資料</h2>
+    <p>姓名: 張小明</p>
+    <p>年級: 5年級</p>
+    <p>活動: 羽球比賽</p>
+    <!-- 其他報名資料可以動態加入 -->
+  </div>
 
-<!-- Firebase UMD -->
-<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore-compat.js"></script>
+  <!-- 簽名區 -->
+  <div id="signatureContainer">
+    <h3>簽名</h3>
+    <canvas id="signatureCanvas" width="400" height="150"></canvas>
+    <br>
+    <button id="clearSignature">清除簽名</button>
+  </div>
 
-<!-- jsPDF UMD -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <br>
+  <!-- 生成 PDF 按鈕 -->
+  <button id="pdfButton">生成 PDF</button>
 
-<script>
-const firebaseConfig = {
-  apiKey: "AIzaSyCk-1B0IwsSOwlNIn71-LofJRoHzgh6kJQ",
-  authDomain: "signup-f163b.firebaseapp.com",
-  projectId: "signup-f163b",
-  storageBucket: "signup-f163b.appspot.com",
-  messagingSenderId: "4965735888",
-  appId: "1:4965735888:web:6ce33434885f967ed22dd5"
-};
+  <!-- jsPDF 與 html2canvas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-// 初始化 Firebase
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+  <script>
+    const { jsPDF } = window.jspdf;
 
-const loginForm = document.getElementById("loginForm");
-const contentDiv = document.getElementById("content");
-const loginStatus = document.getElementById("loginStatus");
-const tableBody = document.querySelector("#signaturesTable tbody");
+    // 簽名功能
+    const canvas = document.getElementById('signatureCanvas');
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
 
-// 登入
-document.getElementById("loginBtn").addEventListener("click", async () => {
-  const email = document.getElementById("adminEmail").value.trim();
-  const password = document.getElementById("adminPassword").value.trim();
-  try {
-    await auth.signInWithEmailAndPassword(email, password);
-    loginStatus.textContent = "";
-  } catch(e) {
-    console.error(e);
-    loginStatus.textContent = "帳號或密碼錯誤";
-  }
-});
+    canvas.addEventListener('mousedown', e => { drawing = true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); });
+    canvas.addEventListener('mousemove', e => { if (drawing) ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); });
+    canvas.addEventListener('mouseup', e => { drawing = false; });
+    canvas.addEventListener('mouseleave', e => { drawing = false; });
 
-// 登出
-document.getElementById("logoutBtn").addEventListener("click", async () => {
-  await auth.signOut();
-});
+    document.getElementById('clearSignature').addEventListener('click', () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    });
 
-// 監聽登入狀態
-auth.onAuthStateChanged(user => {
-  if(user){
-    loginForm.style.display = "none";
-    contentDiv.style.display = "block";
-    loadSignatures();
-  } else {
-    loginForm.style.display = "block";
-    contentDiv.style.display = "none";
-  }
-});
+    // 生成 PDF
+    document.getElementById('pdfButton').addEventListener('click', async () => {
+      const content = document.getElementById('contentToPrint');
+      const signature = document.getElementById('signatureCanvas');
 
-// 讀取 Firestore 簽名資料
-async function loadSignatures(){
-  const snapshot = await db.collection("signatures").orderBy("timestamp", "desc").get();
-  tableBody.innerHTML = "";
-  snapshot.forEach(doc => {
-    const data = doc.data();
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${data.idLast5 || ""}</td>
-      <td><img src="${data.signatureUrl || ""}" /></td>
-      <td>${data.timestamp ? data.timestamp.toDate().toLocaleString() : ""}</td>
-    `;
-    tableBody.appendChild(tr);
-  });
-}
+      try {
+        // 將報名內容轉為 canvas
+        const contentCanvas = await html2canvas(content, { backgroundColor: '#fff', scale: 2 });
+        const contentImg = contentCanvas.toDataURL('image/png');
 
-// PDF 下載
-document.getElementById("downloadPDF").addEventListener("click", () => {
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF();
-  let y = 10;
-  tableBody.querySelectorAll("tr").forEach(row => {
-    const idText = row.cells[0].textContent;
-    const signatureImg = row.cells[1].querySelector("img");
-    const timeText = row.cells[2].textContent;
+        // 將簽名轉為 PNG
+        const signatureImg = signature.toDataURL('image/png');
 
-    pdf.setFontSize(16);
-    pdf.text("蔡文國民小學資通安全保密同意書", 105, y, {align: "center"});
-    y += 10;
+        const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+        const pdfWidth = doc.internal.pageSize.getWidth();
+        let yOffset = 0;
 
-    pdf.setFontSize(12);
-    pdf.text("依據本校資訊安全維護計畫要求全校教職員簽署資通保密同意書如下：", 10, y);
-    y += 8;
+        // 加入報名內容
+        const contentHeight = (contentCanvas.height * pdfWidth) / contentCanvas.width;
+        doc.addImage(contentImg, 'PNG', 0, yOffset, pdfWidth, contentHeight);
+        yOffset += contentHeight + 5;
 
-    const points = [
-      "1. 於業務上所知悉之機敏資料及運用之資通系統等，應善盡保管及保密之責。",
-      "2. 相關業務之資訊、文件，不得私自洩漏與業務無關之人員。",
-      "3. 使用即時通訊軟體傳遞機關內部公務訊息，其內容不得涉及機密資料。",
-      "4. 遵守本單位資通安全相關之法令及規定。",
-      "5. 如有危害本單位資通安全之行為，願負相關之責任。"
-    ];
-    points.forEach(p => { pdf.text(p, 10, y); y += 7; });
+        // 加入簽名
+        const signatureHeight = (signature.height * pdfWidth) / signature.width;
+        doc.addImage(signatureImg, 'PNG', 0, yOffset, pdfWidth, signatureHeight);
 
-    pdf.text(`身分證後五碼: ${idText}`, 10, y);
-    y += 10;
-    if(signatureImg) { pdf.addImage(signatureImg.src, "PNG", 10, y, 100, 50); y += 55; }
-    pdf.text(`送出時間: ${timeText}`, 10, y);
-    y += 20;
-
-    if(y > 270){ pdf.addPage(); y=10; }
-  });
-
-  pdf.save("consent_signatures.pdf");
-});
-</script>
-
+        doc.save('報名資料.pdf');
+      } catch (err) {
+        console.error('PDF 生成失敗:', err);
+        alert('PDF 生成失敗，請稍後再試');
+      }
+    });
+  </script>
 </body>
 </html>
