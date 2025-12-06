@@ -3,41 +3,37 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>管理後臺 - 資安同意書紀錄</title>
+<title>管理後臺</title>
 <style>
-body{font-family:Noto Sans TC,sans-serif;background:#f5f5f5;padding:20px;}
-.container{max-width:1000px;margin:0 auto;background:#fff;padding:30px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1);}
-h1{text-align:center;color:#003366;}
-table{width:100%;border-collapse:collapse;margin-top:20px;}
-th,td{border:1px solid #ccc;padding:8px;text-align:center;}
-th{background:#f0f0f0;}
-img.signature{width:200px;height:auto;}
+body { font-family:Noto Sans TC, sans-serif; background:#f5f5f5; padding:20px;}
+h1 { text-align:center; color:#003366;}
+table { width:100%; border-collapse: collapse; margin-top:20px; background:#fff;}
+th, td { border:1px solid #ccc; padding:8px; text-align:center;}
+th { background-color:#006600; color:white;}
+img { max-width:150px; max-height:100px;}
+button { margin-top:15px; padding:8px 16px; background:#006600; color:#fff; border:none; border-radius:5px; cursor:pointer;}
+button:hover { background:#004d00;}
 </style>
 </head>
 <body>
+<h1>資通安全同意書管理後臺</h1>
 
-
-<div class="container">
-<h1>管理後臺 - 同意書紀錄</h1>
-
-<table id="recordsTable">
-<thead>
-<tr>
-<th>身分證後5碼</th>
-<th>是否同意</th>
-<th>簽名圖片</th>
-<th>送出時間</th>
-    <button id="printBtn" style="margin-bottom:20px;padding:10px 15px;background:#006600;color:#fff;border:none;border-radius:5px;cursor:pointer;">列印 PDF</button>
-</tr>
-</thead>
-<tbody>
-</tbody>
+<button id="downloadPDF">下載 PDF</button>
+<table id="signaturesTable">
+  <thead>
+    <tr>
+      <th>身分證後五碼</th>
+      <th>簽名</th>
+      <th>送出時間</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
 </table>
-</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
 import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+import jsPDF from "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCk-1B0IwsSOwlNIn71-LofJRoHzgh6kJQ",
@@ -50,31 +46,57 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const tableBody = document.querySelector("#signaturesTable tbody");
 
-async function loadRecords(){
-  const tbody = document.querySelector("#recordsTable tbody");
-  tbody.innerHTML = "";
-  const q = query(collection(db,"signatures"), orderBy("timestamp","desc"));
+async function loadSignatures() {
+  const q = query(collection(db, "signatures"), orderBy("timestamp","desc"));
   const snapshot = await getDocs(q);
-
+  tableBody.innerHTML = "";
   snapshot.forEach(doc => {
     const data = doc.data();
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${data.idLast5}</td>
-      <td>${data.agree ? "同意" : "不同意"}</td>
-      <td><img class="signature" src="${data.signatureUrl}"></td>
-      <td>${data.timestamp ? data.timestamp.toDate().toLocaleString() : ""}</td>
-    `;
-    tbody.appendChild(tr);
+
+    const tdId = document.createElement("td");
+    tdId.textContent = data.idLast5 || "";
+    tr.appendChild(tdId);
+
+    const tdSignature = document.createElement("td");
+    const img = document.createElement("img");
+    img.src = data.signatureUrl;
+    tdSignature.appendChild(img);
+    tr.appendChild(tdSignature);
+
+    const tdTime = document.createElement("td");
+    const date = data.timestamp?.toDate ? data.timestamp.toDate() : new Date();
+    tdTime.textContent = date.toLocaleString();
+    tr.appendChild(tdTime);
+
+    tableBody.appendChild(tr);
   });
 }
+loadSignatures();
 
-loadRecords();
-  document.getElementById("printBtn").addEventListener("click", () => {
-  window.print();
+// PDF 下載
+document.getElementById("downloadPDF").addEventListener("click", async () => {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF();
+  let y = 10;
+
+  for (let row of tableBody.querySelectorAll("tr")) {
+    const idText = row.cells[0].textContent;
+    const signatureImg = row.cells[1].querySelector("img");
+    const timeText = row.cells[2].textContent;
+
+    pdf.text(`身分證後五碼: ${idText}`, 10, y);
+    if(signatureImg) pdf.addImage(signatureImg.src, "PNG", 10, y+2, 50, 25);
+    pdf.text(`送出時間: ${timeText}`, 70, y+15);
+    y += 35;
+    if(y > 270){ pdf.addPage(); y=10; }
+  }
+
+  pdf.save("signatures.pdf");
 });
-
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </body>
 </html>
