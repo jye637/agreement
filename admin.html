@@ -3,115 +3,71 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>管理後台</title>
+<title>管理後臺 - 資安同意書紀錄</title>
 <style>
-body{font-family:Noto Sans TC,sans-serif;padding:20px;}
-table{width:100%;border-collapse:collapse;}
+body{font-family:Noto Sans TC,sans-serif;background:#f5f5f5;padding:20px;}
+.container{max-width:1000px;margin:0 auto;background:#fff;padding:30px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1);}
+h1{text-align:center;color:#003366;}
+table{width:100%;border-collapse:collapse;margin-top:20px;}
 th,td{border:1px solid #ccc;padding:8px;text-align:center;}
-img{max-width:100px;}
+th{background:#f0f0f0;}
+img.signature{width:200px;height:auto;}
 </style>
 </head>
 <body>
-<h1>簽名資料管理</h1>
-<div id="loginDiv">
-    <input type="email" id="email" placeholder="Email">
-    <input type="password" id="password" placeholder="Password">
-    <button id="loginBtn">登入</button>
-</div>
+<div class="container">
+<h1>管理後臺 - 同意書紀錄</h1>
 
-<div id="dataDiv" style="display:none;">
-    <table>
-        <thead><tr><th>身分證後5碼</th><th>同意</th><th>簽名</th><th>送出時間</th></tr></thead>
-        <tbody id="dataTable"></tbody>
-    </table>
+<table id="recordsTable">
+<thead>
+<tr>
+<th>身分證後5碼</th>
+<th>是否同意</th>
+<th>簽名圖片</th>
+<th>送出時間</th>
+</tr>
+</thead>
+<tbody>
+</tbody>
+</table>
 </div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCk-1B0IwsSOwlNIn71-LofJRoHzgh6kJQ",
+  authDomain: "signup-f163b.firebaseapp.com",
+  projectId: "signup-f163b",
+  storageBucket: "signup-f163b.appspot.com",
+  messagingSenderId: "4965735888",
+  appId: "1:4965735888:web:6ce33434885f967ed22dd5"
 };
+
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const auth = getAuth(app);
 
-document.getElementById("loginBtn").addEventListener("click", async ()=>{
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
-    try{
-        await signInWithEmailAndPassword(auth,email,password);
-        document.getElementById("loginDiv").style.display="none";
-        document.getElementById("dataDiv").style.display="block";
+async function loadRecords(){
+  const tbody = document.querySelector("#recordsTable tbody");
+  tbody.innerHTML = "";
+  const q = query(collection(db,"signatures"), orderBy("timestamp","desc"));
+  const snapshot = await getDocs(q);
 
-        const q = query(collection(db,"signatures"), orderBy("timestamp","desc"));
-        const snapshot = await getDocs(q);
-        const tbody = document.getElementById("dataTable");
-        tbody.innerHTML="";
-        snapshot.forEach(doc=>{
-            const d = doc.data();
-            const time = d.timestamp?.toDate().toLocaleString()||"";
-            tbody.innerHTML+=`<tr>
-                <td>${d.idLast5}</td>
-                <td>${d.agree?'是':'否'}</td>
-                <td><img src="${d.signature}" alt="簽名"></td>
-                <td>${time}</td>
-            </tr>`;
-        });
-    }catch(err){alert(err);}
-});
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${data.idLast5}</td>
+      <td>${data.agree ? "同意" : "不同意"}</td>
+      <td><img class="signature" src="${data.signatureUrl}"></td>
+      <td>${data.timestamp ? data.timestamp.toDate().toLocaleString() : ""}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
 
-    const canvas = document.getElementById("signatureCanvas");
-const ctx = canvas.getContext("2d");
-let drawing = false;
-
-canvas.addEventListener("mousedown", e => { drawing = true; ctx.moveTo(e.offsetX, e.offsetY); });
-canvas.addEventListener("mousemove", e => { if(drawing) { ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); } });
-canvas.addEventListener("mouseup", () => drawing = false);
-canvas.addEventListener("mouseleave", () => drawing = false);
-
-document.getElementById("submitBtn").addEventListener("click", async (e) => {
-    e.preventDefault();
-
-    const agree = document.getElementById("agree").checked;
-    const idLast5 = document.getElementById("idLast5").value.trim();
-
-    if(!agree) { alert("請勾選同意"); return; }
-    if(idLast5.length !== 5) { alert("請輸入正確的身分證後5碼"); return; }
-
-    const dataUrl = canvas.toDataURL();
-    const fileName = `signatures/${idLast5}_${Date.now()}.png`;
-    const storageRef = ref(storage, fileName);
-
-    try {
-        await uploadString(storageRef, dataUrl, "data_url");
-        const signatureUrl = await getDownloadURL(storageRef);
-
-        await addDoc(collection(db, "signatures"), {
-            agree,
-            idLast5,
-            signatureUrl,
-            timestamp: serverTimestamp()
-        });
-
-        alert("我們已經收到您的同意書了");
-        document.getElementById("agree").checked = false;
-        document.getElementById("idLast5").value = "";
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-    } catch (error) {
-        console.error(error);
-        alert("送出失敗，請稍後再試");
-    }
-});
-
+loadRecords();
 </script>
-    
 </body>
 </html>
