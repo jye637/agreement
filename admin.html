@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>管理後臺</title>
+<title>蔡小資安同意書管理後臺</title>
 <style>
 body { font-family:Noto Sans TC, sans-serif; background:#f5f5f5; padding:20px;}
 h1 { text-align:center; color:#003366;}
@@ -31,6 +31,7 @@ button:hover { background:#004d00;}
 <div id="content">
 <h1>資通安全同意書管理後臺</h1>
 <button id="downloadPDF">下載 PDF</button>
+<button id="logoutBtn">登出</button>
 <table id="signaturesTable">
   <thead>
     <tr>
@@ -46,6 +47,9 @@ button:hover { background:#004d00;}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
 import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
+
+// jsPDF CDN
 import jsPDF from "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
 
 const firebaseConfig = {
@@ -59,24 +63,43 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
 
-const ADMIN_EMAIL = "jye637@tsw.kh.edu.tw";
-const ADMIN_PASSWORD = "720926";
+const loginForm = document.getElementById("loginForm");
+const contentDiv = document.getElementById("content");
+const loginStatus = document.getElementById("loginStatus");
+const tableBody = document.querySelector("#signaturesTable tbody");
 
-document.getElementById("loginBtn").addEventListener("click", () => {
+// 登入按鈕
+document.getElementById("loginBtn").addEventListener("click", async () => {
   const email = document.getElementById("adminEmail").value.trim();
   const password = document.getElementById("adminPassword").value.trim();
-  if(email === ADMIN_EMAIL && password === ADMIN_PASSWORD){
-    document.getElementById("loginForm").style.display = "none";
-    document.getElementById("content").style.display = "block";
-    loadSignatures();
-  } else {
-    document.getElementById("loginStatus").textContent = "帳號或密碼錯誤";
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    loginStatus.textContent = "";
+  } catch (error) {
+    loginStatus.textContent = "帳號或密碼錯誤";
   }
 });
 
-const tableBody = document.querySelector("#signaturesTable tbody");
+// 登出按鈕
+document.getElementById("logoutBtn").addEventListener("click", async () => {
+  await signOut(auth);
+});
 
+// 監聽登入狀態
+onAuthStateChanged(auth, user => {
+  if(user){
+    loginForm.style.display = "none";
+    contentDiv.style.display = "block";
+    loadSignatures();
+  } else {
+    loginForm.style.display = "block";
+    contentDiv.style.display = "none";
+  }
+});
+
+// 讀取 Firestore 簽名資料
 async function loadSignatures() {
   const q = query(collection(db, "signatures"), orderBy("timestamp","desc"));
   const snapshot = await getDocs(q);
@@ -91,7 +114,7 @@ async function loadSignatures() {
 
     const tdSignature = document.createElement("td");
     const img = document.createElement("img");
-    img.src = data.signatureUrl;
+    img.src = data.signatureDataUrl || "";
     tdSignature.appendChild(img);
     tr.appendChild(tdSignature);
 
@@ -104,25 +127,61 @@ async function loadSignatures() {
   });
 }
 
-// PDF 下載
+// PDF 下載（完整資安同意書 + 簽名）
 document.getElementById("downloadPDF").addEventListener("click", async () => {
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF();
   let y = 10;
+
   for (let row of tableBody.querySelectorAll("tr")) {
     const idText = row.cells[0].textContent;
     const signatureImg = row.cells[1].querySelector("img");
     const timeText = row.cells[2].textContent;
 
+    // 標題
+    pdf.setFontSize(16);
+    pdf.text("蔡文國民小學資通安全保密同意書", 105, y, {align: "center"});
+    y += 10;
+
+    pdf.setFontSize(12);
+    pdf.text("依據本校資訊安全維護計畫要求全校教職員簽署資通保密同意書如下：", 10, y);
+    y += 8;
+
+    const points = [
+      "1. 於業務上所知悉之機敏資料及運用之資通系統等，應善盡保管及保密之責。",
+      "2. 相關業務之資訊、文件，不得私自洩漏與業務無關之人員。",
+      "3. 使用即時通訊軟體傳遞機關內部公務訊息，其內容不得涉及機密資料。",
+      "4. 遵守本單位資通安全相關之法令及規定。",
+      "5. 如有危害本單位資通安全之行為，願負相關之責任。"
+    ];
+
+    points.forEach(p => {
+      pdf.text(p, 10, y);
+      y += 7;
+    });
+
     pdf.text(`身分證後五碼: ${idText}`, 10, y);
-    if(signatureImg) pdf.addImage(signatureImg.src, "PNG", 10, y+2, 50, 25);
-    pdf.text(`送出時間: ${timeText}`, 70, y+15);
-    y += 35;
-    if(y > 270){ pdf.addPage(); y=10; }
+    y += 10;
+
+    if(signatureImg) {
+      pdf.addImage(signatureImg.src, "PNG", 10, y, 100, 50);
+      y += 55;
+    }
+
+    pdf.text(`送出時間: ${timeText}`, 10, y);
+    y += 20;
+
+    if(y > 270) { 
+      pdf.addPage(); 
+      y = 10; 
+    }
   }
-  pdf.save("signatures.pdf");
+
+  pdf.save("consent_signatures.pdf");
 });
 </script>
+
+<!-- jsPDF CDN -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 </body>
