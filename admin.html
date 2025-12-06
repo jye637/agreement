@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>114資安同意書管理後臺</title>
+<title>管理後臺</title>
 <style>
 body { font-family:Noto Sans TC, sans-serif; background:#f5f5f5; padding:20px;}
 h1 { text-align:center; color:#003366;}
@@ -44,12 +44,15 @@ button:hover { background:#004d00;}
 </table>
 </div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js";
-import { jsPDF } from "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.es.min.js";
+<!-- Firebase UMD -->
+<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore-compat.js"></script>
 
+<!-- jsPDF UMD -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<script>
 const firebaseConfig = {
   apiKey: "AIzaSyCk-1B0IwsSOwlNIn71-LofJRoHzgh6kJQ",
   authDomain: "signup-f163b.firebaseapp.com",
@@ -59,35 +62,36 @@ const firebaseConfig = {
   appId: "1:4965735888:web:6ce33434885f967ed22dd5"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
+// 初始化 Firebase
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
 
 const loginForm = document.getElementById("loginForm");
 const contentDiv = document.getElementById("content");
 const loginStatus = document.getElementById("loginStatus");
 const tableBody = document.querySelector("#signaturesTable tbody");
 
-// 登入按鈕
+// 登入
 document.getElementById("loginBtn").addEventListener("click", async () => {
   const email = document.getElementById("adminEmail").value.trim();
   const password = document.getElementById("adminPassword").value.trim();
   try {
-    await signInWithEmailAndPassword(auth, email, password);
+    await auth.signInWithEmailAndPassword(email, password);
     loginStatus.textContent = "";
-  } catch (error) {
-    console.error(error);
+  } catch(e) {
+    console.error(e);
     loginStatus.textContent = "帳號或密碼錯誤";
   }
 });
 
-// 登出按鈕
+// 登出
 document.getElementById("logoutBtn").addEventListener("click", async () => {
-  await signOut(auth);
+  await auth.signOut();
 });
 
 // 監聽登入狀態
-onAuthStateChanged(auth, user => {
+auth.onAuthStateChanged(user => {
   if(user){
     loginForm.style.display = "none";
     contentDiv.style.display = "block";
@@ -99,44 +103,31 @@ onAuthStateChanged(auth, user => {
 });
 
 // 讀取 Firestore 簽名資料
-async function loadSignatures() {
-  const q = query(collection(db, "signatures"), orderBy("timestamp","desc"));
-  const snapshot = await getDocs(q);
+async function loadSignatures(){
+  const snapshot = await db.collection("signatures").orderBy("timestamp", "desc").get();
   tableBody.innerHTML = "";
   snapshot.forEach(doc => {
     const data = doc.data();
     const tr = document.createElement("tr");
-
-    const tdId = document.createElement("td");
-    tdId.textContent = data.idLast5 || "";
-    tr.appendChild(tdId);
-
-    const tdSignature = document.createElement("td");
-    const img = document.createElement("img");
-    img.src = data.signatureDataUrl || "";
-    tdSignature.appendChild(img);
-    tr.appendChild(tdSignature);
-
-    const tdTime = document.createElement("td");
-    const date = data.timestamp?.toDate ? data.timestamp.toDate() : new Date();
-    tdTime.textContent = date.toLocaleString();
-    tr.appendChild(tdTime);
-
+    tr.innerHTML = `
+      <td>${data.idLast5 || ""}</td>
+      <td><img src="${data.signatureUrl || ""}" /></td>
+      <td>${data.timestamp ? data.timestamp.toDate().toLocaleString() : ""}</td>
+    `;
     tableBody.appendChild(tr);
   });
 }
 
-// PDF 下載（完整資安同意書 + 簽名）
-document.getElementById("downloadPDF").addEventListener("click", async () => {
+// PDF 下載
+document.getElementById("downloadPDF").addEventListener("click", () => {
+  const { jsPDF } = window.jspdf;
   const pdf = new jsPDF();
   let y = 10;
-
-  for (let row of tableBody.querySelectorAll("tr")) {
+  tableBody.querySelectorAll("tr").forEach(row => {
     const idText = row.cells[0].textContent;
     const signatureImg = row.cells[1].querySelector("img");
     const timeText = row.cells[2].textContent;
 
-    // 標題
     pdf.setFontSize(16);
     pdf.text("蔡文國民小學資通安全保密同意書", 105, y, {align: "center"});
     y += 10;
@@ -152,28 +143,16 @@ document.getElementById("downloadPDF").addEventListener("click", async () => {
       "4. 遵守本單位資通安全相關之法令及規定。",
       "5. 如有危害本單位資通安全之行為，願負相關之責任。"
     ];
-
-    points.forEach(p => {
-      pdf.text(p, 10, y);
-      y += 7;
-    });
+    points.forEach(p => { pdf.text(p, 10, y); y += 7; });
 
     pdf.text(`身分證後五碼: ${idText}`, 10, y);
     y += 10;
-
-    if(signatureImg) {
-      pdf.addImage(signatureImg.src, "PNG", 10, y, 100, 50);
-      y += 55;
-    }
-
+    if(signatureImg) { pdf.addImage(signatureImg.src, "PNG", 10, y, 100, 50); y += 55; }
     pdf.text(`送出時間: ${timeText}`, 10, y);
     y += 20;
 
-    if(y > 270) { 
-      pdf.addPage(); 
-      y = 10; 
-    }
-  }
+    if(y > 270){ pdf.addPage(); y=10; }
+  });
 
   pdf.save("consent_signatures.pdf");
 });
