@@ -35,7 +35,7 @@
 <table>
     <thead>
         <tr>
-            <th>姓名 userName</th>
+            <th>姓名 username</th>
             <th>身分證末五碼 idLast5</th>
             <th>是否同意 agree</th>
             <th>簽名 signature</th>
@@ -78,7 +78,7 @@ const firebaseConfig = {
 
                     const row = `
                         <tr>
-                            <td>${d.userName || "未填"}</td>
+                            <td>${d.username || "未填"}</td>
                             <td>${d.idLast5 || "未填"}</td>
                             <td>${d.agree ? "✔ 已同意" : "✘ 未同意"}</td>
                             <td>
