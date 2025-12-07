@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>使用者資安條款</title>
+    <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        #termsBox { 
+            padding: 15px; 
+            border: 1px solid #aaa; 
+            background: #f9f9f9; 
+            margin-bottom: 20px; 
+            line-height: 1.6;
+        }
+        img { max-width: 300px; border: 1px solid #333; }
+    </style>
+</head>
+<body>
+
+<h2>使用者簽署內容</h2>
+
+<div id="userInfo">讀取中...</div>
+
+<h3>使用者簽名：</h3>
+<img id="signatureImg" src="">
+
+<h3>簽署內容條款：</h3>
+<div id="termsBox"></div>
+
+<script>
+    // TODO: 這裡換成你的 Firebase 設定
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_AUTH_DOMAIN",
+        projectId: "YOUR_PROJECT_ID"
+    };
+
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // 資安條款（可自行更改）
+    const termsText = `
+<h3>蔡文國民小學 資通安全保密同意書</h3>
+<p>依據本校資訊安全維護計畫要求全校教職員簽署資通保密同意書如下：</p>
+<p>立書同意人於蔡文國民小學任職，因業務涉及單位重要之資訊及資通系統，故同意下列保密事項：</p>
+<p>一、於業務上所知悉或持有學校資訊與個資，均不得洩漏、蓄意破壞、擅自篡改、或為其他非法目的使用。</p>
+<p>二、不得將帳號密碼提供他人使用，並應妥善保管避免外洩。</p>
+<p>三、違反資安規範者，將依相關辦法進行處理。</p>
+<p>四、如離職，仍須遵守資訊保密義務。</p>
+    `;
+
+    document.getElementById("termsBox").innerHTML = termsText;
+
+    // 取得 URL ?id=xxxx
+    const urlParams = new URLSearchParams(window.location.search);
+    const docId = urlParams.get("id");
+
+    db.collection("signatures").doc(docId).get().then(doc => {
+        if (!doc.exists) {
+            document.getElementById("userInfo").innerText = "找不到資料";
+            return;
+        }
+
+        const d = doc.data();
+        document.getElementById("userInfo").innerHTML = `
+            <p><b>姓名：</b> ${d.userName}</p>
+            <p><b>身分證後五碼：</b> ${d.idLast5}</p>
+            <p><b>是否同意：</b> ${d.agree ? "同意" : "不同意"}</p>
+            <p><b>簽署時間：</b> ${d.timestamp?.toDate().toLocaleString("zh-TW")}</p>
+        `;
+        document.getElementById("signatureImg").src = d.signatureDataUrl;
+    });
+</script>
+
+</body>
+</html>
