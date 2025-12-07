@@ -31,11 +31,16 @@
 
 <script>
     // TODO: 這裡換成你的 Firebase 設定
-    const firebaseConfig = {
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_AUTH_DOMAIN",
-        projectId: "YOUR_PROJECT_ID"
-    };
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyCk-1B0IwsSOwlNIn71-LofJRoHzgh6kJQ",
+  authDomain: "signup-f163b.firebaseapp.com",
+  projectId: "signup-f163b",
+  storageBucket: "signup-f163b.firebasestorage.app",
+  messagingSenderId: "4965735888",
+  appId: "1:4965735888:web:6ce33434885f967ed22dd5",
+  measurementId: "G-81931LXRL1"
+};
 
     const app = firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
