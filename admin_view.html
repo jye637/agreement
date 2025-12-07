@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>資安同意書簽署紀錄</title>
+    <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        table, th, td { border: 1px solid #ccc; }
+        th, td { padding: 8px; text-align: center; }
+        input { padding: 6px; width: 200px; }
+        .yes { color: green; font-weight: bold; }
+        .no { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<h2>資安同意書簽署紀錄</h2>
+
+搜尋：<input type="text" id="searchInput" placeholder="輸入姓名或後五碼">
+
+<table>
+    <thead>
+        <tr>
+            <th>姓名</th>
+            <th>身分證後五碼</th>
+            <th>是否同意</th>
+            <th>簽署時間</th>
+            <th>查看完整條款</th>
+        </tr>
+    </thead>
+    <tbody id="dataBody"></tbody>
+</table>
+
+<script>
+    // TODO: 這裡換成你的 Firebase 設定
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_AUTH_DOMAIN",
+        projectId: "YOUR_PROJECT_ID"
+    };
+
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const tbody = document.getElementById("dataBody");
+    const searchInput = document.getElementById("searchInput");
+
+    let allData = [];
+
+    function renderTable(data) {
+        tbody.innerHTML = "";
+        data.forEach(doc => {
+            const d = doc.data();
+            const tr = document.createElement("tr");
+
+            tr.innerHTML = `
+                <td>${d.userName}</td>
+                <td>${d.idLast5}</td>
+                <td class="${d.agree ? "yes" : "no"}">${d.agree ? "同意" : "不同意"}</td>
+                <td>${d.timestamp?.toDate().toLocaleString("zh-TW")}</td>
+                <td><a href="terms_view.html?id=${doc.id}" target="_blank">查看</a></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // 讀取全部資料
+    db.collection("signatures").orderBy("timestamp", "desc").onSnapshot(snap => {
+        allData = snap.docs;
+        renderTable(allData);
+    });
+
+    // 搜尋功能
+    searchInput.addEventListener("input", () => {
+        const key = searchInput.value.trim();
+        if (!key) {
+            renderTable(allData);
+            return;
+        }
+        const filtered = allData.filter(doc => {
+            const d = doc.data();
+            return d.userName.includes(key) || d.idLast5.includes(key);
+        });
+        renderTable(filtered);
+    });
+</script>
+
+</body>
+</html>
