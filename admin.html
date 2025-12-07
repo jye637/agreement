@@ -2,129 +2,133 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>管理者後台 - 資通安全同意書</title>
+<title>資安同意書管理後台</title>
+
+<!-- 使用 Google Fonts 避免中文亂碼 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;700&display=swap" rel="stylesheet">
+
 <style>
-body{font-family:Noto Sans TC,sans-serif;background:#f5f5f5;padding:20px;}
-.container{max-width:900px;margin:0 auto;background:#fff;padding:30px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1);}
-h1{text-align:center;color:#006600;}
-table{width:100%;border-collapse:collapse;margin-top:20px;}
-th, td{border:1px solid #ccc;padding:8px;text-align:center;}
-th{background:#eee;}
-button{padding:5px 10px;margin:2px;}
+body {
+  font-family: 'Noto Sans TC', sans-serif;
+  background: #f0f2f5;
+  padding: 20px;
+  margin: 0;
+}
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  background: #fff;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+.title {
+  text-align: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: #006600;
+}
+.signature-block {
+  border: 1px solid #ddd;
+  padding: 20px;
+  border-radius: 12px;
+  margin-top: 25px;
+}
+.signature-block img {
+  max-width: 300px;
+  display: block;
+  margin-top: 10px;
+}
+.print-btn {
+  padding: 10px 18px;
+  margin-top: 20px;
+  background: #006600;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+}
+.print-btn:hover {
+  background: #008000;
+}
 </style>
 </head>
+
 <body>
-
 <div class="container">
-<h1>管理者後台 - 資通安全同意書</h1>
+  <h1 class="title">蔡文國民小學 資通安全保密同意書（管理後台）</h1>
 
-<div id="adminContent">
-  <table>
-    <thead>
-      <tr>
-        <th>身分證後5碼</th>
-        <th>簽名</th>
-        <th>送出時間</th>
-        <th>操作</th>
-      </tr>
-    </thead>
-    <tbody id="signaturesTableBody"></tbody>
-  </table>
+  <p>
+    以下為所有教職員簽署的資通安全保密同意書資料，包括：<br>
+    1. 身分證後五碼<br>
+    2. 簽名圖片<br>
+    3. 簽署時間<br>
+  </p>
+
+  <button class="print-btn" onclick="window.print()">列印 / 另存 PDF</button>
+
+  <div id="result"></div>
 </div>
 
-<!-- jsPDF UMD -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
+<!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
 
-// Firebase 配置
+/* ⚠️ 請在此貼上你的 Firebase 設定 */
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyCk-1B0IwsSOwlNIn71-LofJRoHzgh6kJQ",
   authDomain: "signup-f163b.firebaseapp.com",
   projectId: "signup-f163b",
+  storageBucket: "signup-f163b.firebasestorage.app",
   messagingSenderId: "4965735888",
-  appId: "1:4965735888:web:6ce33434885f967ed22dd5"
+  appId: "1:4965735888:web:6ce33434885f967ed22dd5",
+  measurementId: "G-81931LXRL1"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const tableBody = document.getElementById("signaturesTableBody");
 
-// Noto Sans TC Base64 字型
-// 請自行替換為完整 Base64 字串
-const notoSansTC = "AAEAAAASAQAABAAgR0RFRrRCsIIAA...";
+async function loadData() {
+  const container = document.getElementById("result");
+  const querySnap = await getDocs(collection(db, "signatures"));
 
-// 載入簽名資料
-async function loadSignatures(){
-  tableBody.innerHTML = "";
-  try {
-    const querySnapshot = await getDocs(collection(db, "signatures"));
-    querySnapshot.forEach(docSnap => {
-      const data = docSnap.data();
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${data.idLast5}</td>
-        <td><img src="${data.signatureDataUrl}" width="150"></td>
-        <td>${data.timestamp ? new Date(data.timestamp.seconds*1000).toLocaleString() : "-"}</td>
-        <td><button onclick="generatePDF('${docSnap.id}')">PDF</button></td>
-      `;
-      tableBody.appendChild(tr);
-    });
-  } catch(err){
-    console.error(err);
-    alert("讀取資料失敗，請檢查權限或網路");
-  }
-}
+  querySnap.forEach(doc => {
+    const data = doc.data();
 
-// 自動載入
-loadSignatures();
+    const block = document.createElement("div");
+    block.className = "signature-block";
 
-// 生成 PDF
-window.generatePDF = async function(docId){
-  try {
-    const { jsPDF } = window.jspdf;
-    const docRef = doc(db, "signatures", docId);
-    const docSnap = await getDoc(docRef);
-    if(!docSnap.exists()){
-      alert("找不到該資料");
-      return;
-    }
-    const data = docSnap.data();
+    block.innerHTML = `
+      <h3>使用者：${data.idLast5}</h3>
 
-    const pdf = new jsPDF();
-    pdf.addFileToVFS("NotoSansTC.ttf", notoSansTC);
-    pdf.addFont("NotoSansTC.ttf", "NotoSansTC", "normal");
-    pdf.setFont("NotoSansTC");
-    pdf.setFontSize(14);
-    pdf.text("蔡文國民小學資通安全保密同意書", 10, 20);
-    pdf.setFontSize(12);
-    const content = `
-依據本校資訊安全維護計畫要求全校教職員簽署資通保密同意書如下：
+      <p><strong>簽署時間：</strong>${data.timestamp || "未紀錄"}</p>
 
-1. 於業務上所知悉之機敏資料及運用之資通系統等，應善盡保管及保密之責。
-2. 相關業務之資訊、文件，不得私自洩漏與業務無關之人員。
-3. 使用即時通訊軟體傳遞機關內部公務訊息，其內容不得涉及機密資料。
-4. 遵守本單位資通安全相關之法令及規定。
-5. 如有危害本單位資通安全之行為，願負相關之責任。
+      <p><strong>使用者簽名：</strong></p>
+      <img src="${data.signatureDataUrl}" alt="User Signature">
+
+      <hr>
+
+      <p><strong>使用者同意的條款：</strong></p>
+      <ol>
+        <li>於業務上所知悉之機敏資料及運用之資通系統等，應善盡保管及保密之責。</li>
+        <li>不得私自洩漏與業務無關之人員。</li>
+        <li>使用即時通訊軟體時，不得涉及機密資料。</li>
+        <li>遵守本單位資通安全相關法令與規定。</li>
+        <li>如有危害本單位資通安全之行為，願負相關責任。</li>
+      </ol>
     `;
-    pdf.text(content, 10, 30);
 
-    const img = new Image();
-    img.src = data.signatureDataUrl;
-    img.onload = function(){
-      pdf.addImage(img, "PNG", 10, 120, 180, 50);
-      pdf.save(`同意書_${data.idLast5}.pdf`);
-    };
-  } catch(err){
-    console.error(err);
-    alert("生成 PDF 失敗：" + err.message);
-  }
+    container.appendChild(block);
+  });
 }
+
+loadData();
 </script>
 
-</div>
 </body>
 </html>
