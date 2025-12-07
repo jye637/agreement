@@ -2,40 +2,55 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>資安同意書簽署紀錄</title>
-    <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore.js"></script>
+    <title>資安條款簽署後台</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        table, th, td { border: 1px solid #ccc; }
-        th, td { padding: 8px; text-align: center; }
-        input { padding: 6px; width: 200px; }
-        .yes { color: green; font-weight: bold; }
-        .no { color: red; font-weight: bold; }
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #999;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background: #eee;
+        }
+        img.signature {
+            width: 250px;
+            border: 1px solid #ccc;
+        }
     </style>
 </head>
 <body>
 
-<h2>資安同意書簽署紀錄</h2>
-
-搜尋：<input type="text" id="searchInput" placeholder="輸入姓名或後五碼">
+<h2>資安條款簽署後台</h2>
+<p>以下為所有使用者的同意狀況、簽名與時間紀錄：</p>
 
 <table>
     <thead>
         <tr>
-            <th>姓名</th>
-            <th>身分證後五碼</th>
-            <th>是否同意</th>
-            <th>簽署時間</th>
-            <th>查看完整條款</th>
+            <th>姓名 userName</th>
+            <th>身分證末五碼 idLast5</th>
+            <th>是否同意 agree</th>
+            <th>簽名 signature</th>
+            <th>時間 timestamp</th>
         </tr>
     </thead>
-    <tbody id="dataBody"></tbody>
+    <tbody id="data-body"></tbody>
 </table>
 
+<!-- 🔥 正確載入 Firebase v8（你之前錯在載入 v10） -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
 <script>
-    // TODO: 這裡換成你的 Firebase 設定
+    // ⭐ 填入你的 Firebase 設定（與前台相同）
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyCk-1B0IwsSOwlNIn71-LofJRoHzgh6kJQ",
@@ -47,50 +62,45 @@ const firebaseConfig = {
   measurementId: "G-81931LXRL1"
 };
 
-    const app = firebase.initializeApp(firebaseConfig);
+    // 初始化 Firebase
+    firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    const tbody = document.getElementById("dataBody");
-    const searchInput = document.getElementById("searchInput");
-
-    let allData = [];
-
-    function renderTable(data) {
+    // 讀取 signatures 集合並顯示在表格
+    function loadData() {
+        const tbody = document.getElementById("data-body");
         tbody.innerHTML = "";
-        data.forEach(doc => {
-            const d = doc.data();
-            const tr = document.createElement("tr");
 
-            tr.innerHTML = `
-                <td>${d.userName}</td>
-                <td>${d.idLast5}</td>
-                <td class="${d.agree ? "yes" : "no"}">${d.agree ? "同意" : "不同意"}</td>
-                <td>${d.timestamp?.toDate().toLocaleString("zh-TW")}</td>
-                <td><a href="terms_view.html?id=${doc.id}" target="_blank">查看</a></td>
-            `;
-            tbody.appendChild(tr);
-        });
+        db.collection("signatures").orderBy("timestamp", "desc").get()
+            .then(snapshot => {
+                snapshot.forEach(doc => {
+                    const d = doc.data();
+
+                    const row = `
+                        <tr>
+                            <td>${d.userName || "未填"}</td>
+                            <td>${d.idLast5 || "未填"}</td>
+                            <td>${d.agree ? "✔ 已同意" : "✘ 未同意"}</td>
+                            <td>
+                                ${d.signatureDataUrl 
+                                    ? `<img src="${d.signatureDataUrl}" class="signature">` 
+                                    : "未簽名"}
+                            </td>
+                            <td>${d.timestamp || "未記錄"}</td>
+                        </tr>
+                    `;
+
+                    tbody.innerHTML += row;
+                });
+            })
+            .catch(err => {
+                console.error("讀取失敗：", err);
+                alert("無法讀取資料，請檢查 Firebase 設定！");
+            });
     }
 
-    // 讀取全部資料
-    db.collection("signatures").orderBy("timestamp", "desc").onSnapshot(snap => {
-        allData = snap.docs;
-        renderTable(allData);
-    });
-
-    // 搜尋功能
-    searchInput.addEventListener("input", () => {
-        const key = searchInput.value.trim();
-        if (!key) {
-            renderTable(allData);
-            return;
-        }
-        const filtered = allData.filter(doc => {
-            const d = doc.data();
-            return d.userName.includes(key) || d.idLast5.includes(key);
-        });
-        renderTable(filtered);
-    });
+    // 載入資料
+    loadData();
 </script>
 
 </body>
